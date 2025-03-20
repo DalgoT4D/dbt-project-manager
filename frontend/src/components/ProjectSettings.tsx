@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { TextField, Button, Container, Typography } from '@mui/material';
+import { TextField, Button, Container, Typography, Box, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { API_CONFIG } from '../config';
 
 interface ProjectSettings {
   dbt_project_path: string;
@@ -15,6 +16,8 @@ export default function ProjectSettings() {
     profiles_yml_path: '',
     target_name: '',
   });
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     // Load settings from localStorage when component mounts
@@ -29,11 +32,35 @@ export default function ProjectSettings() {
     }
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('projectSettings', JSON.stringify(settings));
-    alert('Project settings saved successfully');
-    navigate('/sources'); // Navigate to sources page after saving
+    setError(null);
+    setSaving(true);
+    
+    try {
+      // Save to backend
+      const response = await fetch(`${API_CONFIG.backendUrl}/project-settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to save settings');
+      }
+
+      // Save locally
+      localStorage.setItem('projectSettings', JSON.stringify(settings));
+      navigate('/sources'); // Navigate to sources page after saving
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,6 +76,13 @@ export default function ProjectSettings() {
       <Typography variant="h4" component="h1" gutterBottom>
         DBT Project Settings
       </Typography>
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+      
       <form onSubmit={handleSubmit} noValidate autoComplete="off">
         <TextField
           label="DBT Project Path"
@@ -58,6 +92,7 @@ export default function ProjectSettings() {
           fullWidth
           margin="normal"
           required
+          helperText="Absolute path to your dbt project"
         />
         <TextField
           label="profiles.yml Path"
@@ -67,6 +102,7 @@ export default function ProjectSettings() {
           fullWidth
           margin="normal"
           required
+          helperText="Absolute path to your profiles.yml file"
         />
         <TextField
           label="Target Name"
@@ -76,6 +112,7 @@ export default function ProjectSettings() {
           fullWidth
           margin="normal"
           required
+          helperText="The target profile to use (e.g., dev, prod)"
         />
         <Button
           type="submit"
@@ -83,8 +120,9 @@ export default function ProjectSettings() {
           color="primary"
           fullWidth
           style={{ marginTop: '1rem' }}
+          disabled={saving}
         >
-          Save Settings
+          {saving ? 'Saving...' : 'Save Settings'}
         </Button>
       </form>
     </Container>
