@@ -39,7 +39,7 @@ export default function ProjectSettings() {
     
     try {
       // Save to backend
-      const response = await fetch(`${API_CONFIG.backendUrl}/project-settings`, {
+      const response = await fetch(`${API_CONFIG.backendUrl}/api/project-settings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
