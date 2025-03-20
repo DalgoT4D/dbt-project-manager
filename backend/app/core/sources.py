@@ -160,4 +160,105 @@ def delete_source(dbt_project_path: str, source_name: str, table_name: str) -> b
         return False
     except Exception as e:
         print(f"Error deleting source: {str(e)}")
+        return False
+
+def create_sources(dbt_project_path: str, source_name: str, schema_name: str, tables: List[Dict[str, Any]]) -> bool:
+    """Create new sources or add tables to existing sources."""
+    models_dir = Path(dbt_project_path) / 'models'
+    
+    if not models_dir.exists():
+        try:
+            models_dir.mkdir(parents=True)
+        except Exception as e:
+            print(f"Error creating models directory: {str(e)}")
+            return False
+    
+    # First, look for existing YAML files with sources
+    existing_source_file = None
+    
+    for yaml_file in models_dir.rglob('*.y*ml'):  # Match both .yml and .yaml
+        try:
+            with open(yaml_file, 'r') as f:
+                data = yaml.safe_load(f)
+                # Check if this file has sources
+                if data and 'sources' in data:
+                    existing_source_file = yaml_file
+                    break
+        except Exception as e:
+            print(f"Error reading YAML file {yaml_file}: {str(e)}")
+            continue
+    
+    # If no existing file with sources found, create a new sources.yml
+    if not existing_source_file:
+        sources_file = models_dir / 'sources.yml'
+        data = {
+            'version': 2,
+            'sources': []
+        }
+    else:
+        sources_file = existing_source_file
+        try:
+            with open(sources_file, 'r') as f:
+                data = yaml.safe_load(f)
+                if 'sources' not in data:
+                    data['sources'] = []
+        except Exception as e:
+            print(f"Error reading existing sources file: {str(e)}")
+            return False
+    
+    # Check if the source already exists
+    existing_source = None
+    for source in data['sources']:
+        if source.get('name') == source_name:
+            existing_source = source
+            break
+    
+    try:
+        # Handle tables whether they're dictionaries with get() or objects with attributes
+        def get_safe(item, key, default=''):
+            # Handle both dict.get() and object.attribute access
+            if hasattr(item, 'get') and callable(item.get):
+                return item.get(key, default)
+            elif hasattr(item, key):
+                return getattr(item, key, default)
+            else:
+                return default
+        
+        # Create or update the source
+        if existing_source:
+            # Add new tables to the existing source
+            existing_tables = [table.get('name') for table in existing_source.get('tables', [])]
+            
+            for table in tables:
+                table_name = get_safe(table, 'name')
+                if table_name not in existing_tables:
+                    existing_source['tables'].append({
+                        'name': table_name,
+                        'identifier': get_safe(table, 'identifier', table_name),
+                        'description': get_safe(table, 'description', '')
+                    })
+        else:
+            # Create a new source
+            new_source = {
+                'name': source_name,
+                'description': f'Source for {schema_name}',
+                'schema': schema_name,
+                'tables': [
+                    {
+                        'name': get_safe(table, 'name'),
+                        'identifier': get_safe(table, 'identifier', get_safe(table, 'name')),
+                        'description': get_safe(table, 'description', '')
+                    }
+                    for table in tables
+                ]
+            }
+            data['sources'].append(new_source)
+        
+        # Write the updated file
+        with open(sources_file, 'w') as f:
+            yaml.dump(data, f, sort_keys=False)
+        
+        return True
+    except Exception as e:
+        print(f"Error creating sources: {str(e)}")
         return False 

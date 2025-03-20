@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DataGrid, GridColDef, GridActionsCellItem, GridRowParams } from '@mui/x-data-grid';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
 import { API_CONFIG } from '../config';
 import { 
   Dialog, 
@@ -16,8 +17,14 @@ import {
   MenuItem,
   Box,
   Snackbar,
-  Alert
+  Alert,
+  Typography,
+  Checkbox,
+  ListItemText,
+  Paper
 } from '@mui/material';
+// @ts-ignore
+import AddSourceDialog from './AddSourceDialog.tsx';
 
 interface Source {
   source: string;
@@ -36,6 +43,7 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addSourceDialogOpen, setAddSourceDialogOpen] = useState(false);
   const [currentSource, setCurrentSource] = useState<Source & { id: number } | null>(null);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -56,7 +64,7 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
     
     setLoading(true);
     try {
-      const response = await fetch(`${API_CONFIG.backendUrl}/sources`, {
+      const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.sources}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,13 +102,17 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
     }
   };
 
+  const handleAddSource = () => {
+    setAddSourceDialogOpen(true);
+  };
+
   const handleSaveEdit = async () => {
     if (!currentSource) return;
     
     try {
       const originalSource = sources[currentSource.id];
       
-      const response = await fetch(`${API_CONFIG.backendUrl}/sources`, {
+      const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.sources}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -140,7 +152,7 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
     if (!currentSource) return;
     
     try {
-      const response = await fetch(`${API_CONFIG.backendUrl}/sources`, {
+      const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.sources}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -167,6 +179,11 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
       setDeleteDialogOpen(false);
       setCurrentSource(null);
     }
+  };
+
+  const handleSourceAdded = () => {
+    fetchSources();
+    setAddSourceDialogOpen(false);
   };
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
@@ -210,20 +227,34 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
   }));
 
   return (
-    <div style={{ height: 400, width: '100%' }}>
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        initialState={{
-          pagination: {
-            paginationModel: { pageSize: 5 },
-          },
-        }}
-        pageSizeOptions={[5, 10, 25]}
-        loading={loading}
-        disableRowSelectionOnClick
-        sx={{ width: '100%' }}
-      />
+    <div>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5">Sources</Typography>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          startIcon={<AddIcon />}
+          onClick={handleAddSource}
+        >
+          Add New Source
+        </Button>
+      </Box>
+
+      <div style={{ height: 400, width: '100%' }}>
+        <DataGrid
+          rows={rows}
+          columns={columns}
+          initialState={{
+            pagination: {
+              paginationModel: { pageSize: 5 },
+            },
+          }}
+          pageSizeOptions={[5, 10, 25]}
+          loading={loading}
+          disableRowSelectionOnClick
+          sx={{ width: '100%' }}
+        />
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
@@ -275,6 +306,16 @@ export default function SourcesGrid({ dbtProjectPath }: SourcesGridProps) {
           <Button onClick={handleConfirmDelete} color="error" variant="contained">Delete</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Add Source Dialog */}
+      <AddSourceDialog 
+        open={addSourceDialogOpen}
+        onClose={() => setAddSourceDialogOpen(false)}
+        onSourceAdded={handleSourceAdded}
+        dbtProjectPath={dbtProjectPath}
+        onError={(message: string) => showSnackbar(message, 'error')}
+        onSuccess={(message: string) => showSnackbar(message, 'success')}
+      />
 
       {/* Snackbar for notifications */}
       <Snackbar 
