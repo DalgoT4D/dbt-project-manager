@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.project_settings import router as project_settings_router
 from app.api.sources import router as sources_router
 from app.api.warehouse import router as warehouse_router
+from app.api.models import router as models_router
 
 from app.schemas.project import ProjectSettings
 
@@ -24,6 +25,7 @@ app.add_middleware(
 app.include_router(project_settings_router, prefix="/api")
 app.include_router(sources_router, prefix="/api")
 app.include_router(warehouse_router, prefix="/api")
+app.include_router(models_router, prefix="/api")
 
 # In-memory session storage (for development)
 project_settings = None
