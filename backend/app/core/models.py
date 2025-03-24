@@ -30,10 +30,16 @@ def get_models_from_project(dbt_project_path: str) -> List[Model]:
         # Find tests for this model if any
         tests = test_mapping.get(file_name_without_ext, [])
         
+        # Create a unique ID for the model
+        model_id = f"model_{len(models) + 1}"
+        
         models.append(Model(
-            sql_path=relative_path,
-            file_name=file_name,
-            tests=tests
+            id=model_id,
+            name=file_name_without_ext,
+            schema="",  # Will be populated later by get_models_with_schema_info
+            table="",   # Will be populated later by get_models_with_schema_info
+            tests=tests,
+            sql_path=relative_path
         ))
     
     return models
@@ -94,8 +100,8 @@ def get_models_with_schema_info(dbt_project_path: str, models: List[Model], sche
     # Process models to get just the file name without extension
     model_table_mapping = {}
     for model in models:
-        file_name_without_ext = os.path.splitext(model.file_name)[0]
-        model_table_mapping[file_name_without_ext.lower()] = model
+        # Use model.name which is already the file name without extension
+        model_table_mapping[model.name.lower()] = model
     
     # Iterate through schemas and tables to find matches
     for schema_info in schemas:
