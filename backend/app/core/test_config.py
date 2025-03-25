@@ -2,14 +2,7 @@ import os
 import yaml
 from typing import Dict, List, Optional, Tuple, Any
 from ..schemas.models import TestConfig
-
-class SafeDumperFlowForSequences(yaml.SafeDumper):
-    def represent_data(self, data: Any) -> yaml.Node:
-        # use flow style for sequences that do not contain any dictionary
-        if isinstance(data, (list, tuple)) and len([item for item in data if isinstance(item, dict)]) == 0:
-            # looked up the tag from yaml.SafeRepresenter.represent_list
-            return super().represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
-        return super().represent_data(data)
+from .tests import get_available_test_types
 
 def find_schema_file(model_path: str, project_root: str) -> str:
     """
@@ -98,6 +91,7 @@ def add_test_to_schema(
                 elif isinstance(field_value, str) and ',' in field_value:
                     processed_config[field_name] = [v.strip() for v in field_value.split(',')]
                 else:
+                    # The value should already be properly formatted (ref() or source())
                     processed_config[field_name] = field_value
             
             test_entry = {test_type: processed_config}
@@ -129,9 +123,9 @@ def add_test_to_schema(
                 
             model_entry['tests'].append(test_entry)
             
-        # Write updated schema.yml using SafeDumperFlowForSequences
+        # Write updated schema.yml
         with open(schema_path, 'w') as f:
-            yaml.dump(schema, f, Dumper=SafeDumperFlowForSequences)
+            yaml.dump(schema, f, default_flow_style=False)
             
         return True
         
@@ -265,4 +259,5 @@ def get_model_tests(schema_path: str, model_name: str) -> List[str]:
         
     except Exception as e:
         print(f"Error getting model tests: {str(e)}")
-        return [] 
+        return []
+

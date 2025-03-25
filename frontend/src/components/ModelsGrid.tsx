@@ -15,7 +15,11 @@ import {
   Snackbar,
   Paper,
   Chip,
-  Stack
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  SelectChangeEvent
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -77,6 +81,16 @@ interface TestConfigDialogProps {
   targetName: string;
 }
 
+interface ModelOrSource {
+  name: string;
+  value: string;
+  type: 'model' | 'source';
+  schema: string;
+  table: string;
+}
+
+type ConfigValue = string | string[];
+
 const TestConfigDialog: React.FC<TestConfigDialogProps> = ({ 
   open, 
   onClose, 
@@ -89,10 +103,11 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
   const [testTypes, setTestTypes] = useState<TestType[]>([]);
   const [columns, setColumns] = useState<ColumnInfo[]>([]);
   const [selectedTestType, setSelectedTestType] = useState('');
-  const [configValues, setConfigValues] = useState<Record<string, string | string[]>>({});
+  const [configValues, setConfigValues] = useState<Record<string, ConfigValue>>({});
   const [selectedColumn, setSelectedColumn] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [currentArrayInput, setCurrentArrayInput] = useState<string>('');
+  const [modelsAndSources, setModelsAndSources] = useState<ModelOrSource[]>([]);
 
   useEffect(() => {
     const fetchTestTypes = async () => {
@@ -143,9 +158,40 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
     }
   }, [open, dbtProjectPath, profilesYmlPath, targetName, model]);
 
-  const handleTestTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedTestType(event.target.value);
+  const fetchModelsAndSources = async () => {
+    try {
+      const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.modelsAndSources}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dbt_project_path: dbtProjectPath,
+          profiles_yml_path: profilesYmlPath,
+          target_name: targetName
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`API call failed: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setModelsAndSources([...data.models, ...data.sources]);
+    } catch (error) {
+      console.error('Error fetching models and sources:', error);
+      setError('Failed to fetch models and sources');
+    }
+  };
+
+  const handleTestTypeChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newTestType = event.target.value;
+    setSelectedTestType(newTestType);
     setConfigValues({});
+
+    // Check if the selected test type has any model_or_source fields
+    const selectedTestTypeConfig = testTypes.find(t => t.name === newTestType);
+    if (selectedTestTypeConfig?.required_configs.some(config => config.type === 'model_or_source')) {
+      await fetchModelsAndSources();
+    }
   };
 
   const handleColumnChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,9 +237,36 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
       return;
     }
 
+    // Get the selected test type configuration
+    const selectedTestTypeConfig = testTypes.find(t => t.name === selectedTestType);
+    if (!selectedTestTypeConfig) {
+      setError('Invalid test type configuration');
+      return;
+    }
+
+    // Process config values to use the formatted values for model_or_source fields
+    const processedConfig: Record<string, string | string[]> = {};
+    for (const [fieldName, value] of Object.entries(configValues)) {
+      const fieldConfig = selectedTestTypeConfig.required_configs.find(
+        config => config.name === fieldName
+      );
+
+      if (fieldConfig?.type === 'model_or_source') {
+        // Find the selected model or source
+        const selectedItem = modelsAndSources.find(item => item.name === value);
+        if (selectedItem) {
+          processedConfig[fieldName] = selectedItem.value;
+        } else {
+          processedConfig[fieldName] = value;
+        }
+      } else {
+        processedConfig[fieldName] = value;
+      }
+    }
+
     const testConfig = {
       test_type: selectedTestType,
-      config: configValues
+      config: processedConfig
     };
 
     onAddTest({
@@ -244,12 +317,32 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
       );
     }
 
+    if (config.type === 'model_or_source') {
+      const value = configValues[config.name];
+      return (
+        <FormControl fullWidth margin="normal">
+          <InputLabel>{config.description}</InputLabel>
+          <Select
+            value={typeof value === 'string' ? value : ''}
+            onChange={(e: SelectChangeEvent<string>) => handleConfigChange(config.name, e.target.value, config.type)}
+            label={config.description}
+          >
+            {modelsAndSources.map((item) => (
+              <MenuItem key={item.name} value={item.value}>
+                {item.name} ({item.type})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      );
+    }
+
     return (
       <TextField
         key={config.name}
         fullWidth
         label={config.description}
-        value={configValues[config.name] || ''}
+        value={typeof configValues[config.name] === 'string' ? configValues[config.name] : ''}
         onChange={(e) => handleConfigChange(config.name, e.target.value, config.type)}
         margin="normal"
       />

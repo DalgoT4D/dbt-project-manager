@@ -7,6 +7,7 @@ export const API_CONFIG = {
     warehouseSchemas: '/api/warehouse/schemas',
     warehouseTables: '/api/warehouse/tables',
     warehouseSources: '/api/warehouse/sources',
-    models: '/api/models'
+    models: '/api/models',
+    modelsAndSources: '/api/models-and-sources'
   }
 }; 

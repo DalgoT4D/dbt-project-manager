@@ -38,7 +38,7 @@ def get_available_test_types() -> List[TestConfig]:
                 },
                 {
                     "name": "to",
-                    "type": "string",
+                    "type": "model_or_source",
                     "description": "The fully qualified name of the referenced table"
                 }
             ]
@@ -104,13 +104,3 @@ def get_available_test_types() -> List[TestConfig]:
             ]
         )
     ]
-
-def get_test_config(test_type: str) -> Optional[TestConfig]:
-    """
-    Returns the configuration for a specific test type
-    """
-    test_types = get_available_test_types()
-    for test in test_types:
-        if test.name == test_type:
-            return test
-    return None 
