@@ -1,7 +1,15 @@
 import os
 import yaml
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from ..schemas.models import TestConfig
+
+class SafeDumperFlowForSequences(yaml.SafeDumper):
+    def represent_data(self, data: Any) -> yaml.Node:
+        # use flow style for sequences that do not contain any dictionary
+        if isinstance(data, (list, tuple)) and len([item for item in data if isinstance(item, dict)]) == 0:
+            # looked up the tag from yaml.SafeRepresenter.represent_list
+            return super().represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+        return super().represent_data(data)
 
 def find_schema_file(model_path: str, project_root: str) -> str:
     """
@@ -72,16 +80,27 @@ def add_test_to_schema(
             model_entry = {'name': model_name, 'description': ''}
             schema['models'].append(model_entry)
             
-        # Create test configuration based on type
+        # Create test configuration based on config type
         test_type = test_config['test_type']
+        config = test_config.get('config', {})
         
         # Handle simple tests (no config needed)
-        if test_type in ['unique', 'not_null']:
+        if not config:
             test_entry = test_type
-        # Handle tests with nested config
         else:
-            # For tests like accepted_values, the config goes under the test name
-            test_entry = {test_type: test_config['config']}
+            # Process config based on field types
+            processed_config = {}
+            for field_name, field_value in config.items():
+                # If the value is already a list, use it as is
+                if isinstance(field_value, list):
+                    processed_config[field_name] = field_value
+                # If the value is a string and contains commas, treat it as an array
+                elif isinstance(field_value, str) and ',' in field_value:
+                    processed_config[field_name] = [v.strip() for v in field_value.split(',')]
+                else:
+                    processed_config[field_name] = field_value
+            
+            test_entry = {test_type: processed_config}
         
         # Add test to appropriate section
         if column_name:
@@ -110,9 +129,9 @@ def add_test_to_schema(
                 
             model_entry['tests'].append(test_entry)
             
-        # Write updated schema.yml
+        # Write updated schema.yml using SafeDumperFlowForSequences
         with open(schema_path, 'w') as f:
-            yaml.dump(schema, f, default_flow_style=False)
+            yaml.dump(schema, f, Dumper=SafeDumperFlowForSequences)
             
         return True
         

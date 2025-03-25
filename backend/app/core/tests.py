@@ -102,17 +102,6 @@ def get_available_test_types() -> List[TestConfig]:
                     "description": "The expected interval between values"
                 }
             ]
-        ),
-        TestConfig(
-            name="dbt_utils.expression_is_true",
-            description="Ensures that a SQL expression evaluates to true",
-            required_configs=[
-                {
-                    "name": "expression",
-                    "type": "string",
-                    "description": "SQL expression that should evaluate to true"
-                }
-            ]
         )
     ]
 
