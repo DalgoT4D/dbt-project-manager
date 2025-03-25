@@ -19,7 +19,9 @@ import {
   FormControl,
   InputLabel,
   Select,
-  SelectChangeEvent
+  SelectChangeEvent,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -66,7 +68,7 @@ interface AddTestRequest {
   model_path: string;
   test_config: {
     test_type: string;
-    config: Record<string, string | string[]>;
+    config: Record<string, string | string[] | number | boolean>;
   };
   column_name?: string;
 }
@@ -245,7 +247,7 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
     }
 
     // Process config values to use the formatted values for model_or_source fields
-    const processedConfig: Record<string, string | string[]> = {};
+    const processedConfig: Record<string, string | string[] | number | boolean> = {};
     for (const [fieldName, value] of Object.entries(configValues)) {
       const fieldConfig = selectedTestTypeConfig.required_configs.find(
         config => config.name === fieldName
@@ -259,6 +261,17 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
         } else {
           processedConfig[fieldName] = value;
         }
+      } else if (fieldConfig?.type === 'number') {
+        // Convert string value to number
+        const numValue = parseFloat(value as string);
+        if (!isNaN(numValue)) {
+          processedConfig[fieldName] = numValue;
+        } else {
+          processedConfig[fieldName] = value;
+        }
+      } else if (fieldConfig?.type === 'boolean') {
+        // Convert string 'true'/'false' to boolean
+        processedConfig[fieldName] = value === 'true';
       } else {
         processedConfig[fieldName] = value;
       }
@@ -333,6 +346,37 @@ const TestConfigDialog: React.FC<TestConfigDialogProps> = ({
               </MenuItem>
             ))}
           </Select>
+        </FormControl>
+      );
+    }
+
+    if (config.type === 'number') {
+      return (
+        <TextField
+          key={config.name}
+          fullWidth
+          label={config.description}
+          type="number"
+          value={typeof configValues[config.name] === 'string' ? configValues[config.name] : ''}
+          onChange={(e) => handleConfigChange(config.name, e.target.value, config.type)}
+          margin="normal"
+          inputProps={{ step: "any" }}
+        />
+      );
+    }
+
+    if (config.type === 'boolean') {
+      return (
+        <FormControl fullWidth margin="normal">
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={configValues[config.name] === 'true'}
+                onChange={(e) => handleConfigChange(config.name, e.target.checked.toString(), config.type)}
+              />
+            }
+            label={config.description}
+          />
         </FormControl>
       );
     }

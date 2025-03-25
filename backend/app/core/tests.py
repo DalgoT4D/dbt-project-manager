@@ -85,5 +85,58 @@ def get_available_test_types() -> List[TestConfig]:
                     "description": "The expected interval between values"
                 }
             ]
+        ),
+        TestConfig(
+            name="dbt_expectations.expect_column_values_to_be_between",
+            description="Ensures that column values are within a specified range",
+            required_configs=[
+                {
+                    "name": "min_value",
+                    "type": "number",
+                    "description": "Minimum allowed value (optional)"
+                },
+                {
+                    "name": "max_value",
+                    "type": "number",
+                    "description": "Maximum allowed value (optional)"
+                },
+                {
+                    "name": "row_condition",
+                    "type": "string",
+                    "description": "SQL condition to filter rows (optional)"
+                },
+                {
+                    "name": "strictly",
+                    "type": "boolean",
+                    "description": "Whether to use strict comparison (default: false)"
+                }
+            ]
+        ),
+        TestConfig(
+            name="dbt_expectations.expect_column_to_exist",
+            description="Ensures that the specified column exists in the table",
+            required_configs=[]
+        ),
+        TestConfig(
+            name="dbt_expectations.expect_column_values_to_be_in_type_list",
+            description="Ensures that a column's values are of specified types",
+            required_configs=[
+                {
+                    "name": "column_type_list",
+                    "type": "array",
+                    "description": "List of expected column types (e.g., [date, datetime])"
+                }
+            ]
+        ),
+        TestConfig(
+            name="dbt_expectations.expect_column_values_to_be_of_type",
+            description="Ensures that a column's values are of a specified data type",
+            required_configs=[
+                {
+                    "name": "column_type",
+                    "type": "string",
+                    "description": "Expected column type (e.g., date, datetime, string, integer)"
+                }
+            ]
         )
     ]
