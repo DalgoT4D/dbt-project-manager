@@ -44,28 +44,6 @@ def get_available_test_types() -> List[TestConfig]:
             ]
         ),
         TestConfig(
-            name="dbt_utils.unique_where",
-            description="Ensures that a column or combination of columns is unique within a subset of rows",
-            required_configs=[
-                {
-                    "name": "where",
-                    "type": "string",
-                    "description": "SQL condition to filter rows"
-                }
-            ]
-        ),
-        TestConfig(
-            name="dbt_utils.not_null_where",
-            description="Ensures that a column does not contain null values within a subset of rows",
-            required_configs=[
-                {
-                    "name": "where",
-                    "type": "string",
-                    "description": "SQL condition to filter rows"
-                }
-            ]
-        ),
-        TestConfig(
             name="dbt_utils.expression_is_true",
             description="Ensures that a SQL expression evaluates to true",
             required_configs=[
@@ -89,6 +67,11 @@ def get_available_test_types() -> List[TestConfig]:
                     "name": "field",
                     "type": "string",
                     "description": "The timestamp column to check"
+                },
+                {
+                    "name": "interval",
+                    "type": "number",
+                    "description": "The expected interval"
                 }
             ]
         ),
