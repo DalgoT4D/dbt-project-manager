@@ -7,26 +7,17 @@ import {
   DialogTitle, 
   DialogContent, 
   DialogActions, 
-  TextField, 
-  MenuItem, 
   Box, 
   Typography, 
   Alert, 
   Snackbar,
   Paper,
-  Chip,
-  Stack,
-  FormControl,
-  InputLabel,
-  Select,
-  SelectChangeEvent,
-  FormControlLabel,
-  Checkbox
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { API_CONFIG } from '../config';
+import TestConfigDialog, { AddTestRequestInterface } from './TestConfigDialog';
 
 interface Model {
   id: string;
@@ -59,409 +50,17 @@ interface ModelsGridProps {
   targetName: string;
 }
 
-interface AddTestRequest {
-  dbt_project_path: string;
-  profiles_yml_path: string;
-  target_name: string;
-  schema: string;
-  table: string;
-  model_path: string;
-  test_config: {
-    test_type: string;
-    config: Record<string, string | string[] | number | boolean>;
-  };
-  column_name?: string;
-}
-
-interface TestConfigDialogProps {
-  open: boolean;
-  onClose: () => void;
-  model: Model;
-  onAddTest: (testConfig: AddTestRequest) => void;
-  dbtProjectPath: string;
-  profilesYmlPath: string;
-  targetName: string;
-}
-
-interface ModelOrSource {
-  name: string;
-  value: string;
-  type: 'model' | 'source';
-  schema: string;
-  table: string;
-}
-
-type ConfigValue = string | string[];
-
-const TestConfigDialog: React.FC<TestConfigDialogProps> = ({ 
-  open, 
-  onClose, 
-  model, 
-  onAddTest,
-  dbtProjectPath,
-  profilesYmlPath,
-  targetName
-}) => {
-  const [testTypes, setTestTypes] = useState<TestType[]>([]);
-  const [columns, setColumns] = useState<ColumnInfo[]>([]);
-  const [selectedTestType, setSelectedTestType] = useState('');
-  const [configValues, setConfigValues] = useState<Record<string, ConfigValue>>({});
-  const [selectedColumn, setSelectedColumn] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const [currentArrayInput, setCurrentArrayInput] = useState<string>('');
-  const [modelsAndSources, setModelsAndSources] = useState<ModelOrSource[]>([]);
-
-  useEffect(() => {
-    const fetchTestTypes = async () => {
-      try {
-        const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.models}/test-types`);
-        if (!response.ok) {
-          throw new Error(`API call failed: ${response.statusText}`);
-        }
-        const data = await response.json();
-        setTestTypes(data.test_types);
-      } catch (error) {
-        console.error('Error fetching test types:', error);
-        setError('Failed to fetch test types');
-      }
-    };
-
-    const fetchColumns = async () => {
-      if (!model) return;
-      
-      try {
-        const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.models}/columns`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            dbt_project_path: dbtProjectPath,
-            profiles_yml_path: profilesYmlPath,
-            target_name: targetName,
-            schema: model.schema,
-            table: model.table
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(`API call failed: ${response.statusText}`);
-        }
-        const data = await response.json();
-        setColumns(data.columns);
-      } catch (error) {
-        console.error('Error fetching columns:', error);
-        setError('Failed to fetch columns');
-      }
-    };
-
-    if (open && model) {
-      fetchTestTypes();
-      fetchColumns();
-    }
-  }, [open, dbtProjectPath, profilesYmlPath, targetName, model]);
-
-  const fetchModelsAndSources = async () => {
-    try {
-      const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.modelsAndSources}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dbt_project_path: dbtProjectPath,
-          profiles_yml_path: profilesYmlPath,
-          target_name: targetName
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`API call failed: ${response.statusText}`);
-      }
-      const data = await response.json();
-      setModelsAndSources([...data.models, ...data.sources]);
-    } catch (error) {
-      console.error('Error fetching models and sources:', error);
-      setError('Failed to fetch models and sources');
-    }
-  };
-
-  const handleTestTypeChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newTestType = event.target.value;
-    setSelectedTestType(newTestType);
-    setConfigValues({});
-
-    // Check if the selected test type has any model_or_source fields
-    const selectedTestTypeConfig = testTypes.find(t => t.name === newTestType);
-    if (selectedTestTypeConfig?.required_configs.some(config => config.type === 'model_or_source')) {
-      await fetchModelsAndSources();
-    }
-  };
-
-  const handleColumnChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedColumn(event.target.value);
-  };
-
-  const handleConfigChange = (name: string, value: string, type: string) => {
-    if (type === 'array') {
-      setConfigValues(prev => ({
-        ...prev,
-        [name]: value.split(',').map(v => v.trim()).filter(v => v)
-      }));
-    } else {
-      setConfigValues(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
-
-  const handleArrayInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, name: string) => {
-    if (e.key === 'Enter' && currentArrayInput.trim()) {
-      e.preventDefault();
-      const newValue = currentArrayInput.trim();
-      setConfigValues(prev => ({
-        ...prev,
-        [name]: [...(prev[name] as string[] || []), newValue]
-      }));
-      setCurrentArrayInput('');
-    }
-  };
-
-  const handleRemoveArrayValue = (name: string, valueToRemove: string) => {
-    setConfigValues(prev => ({
-      ...prev,
-      [name]: (prev[name] as string[]).filter(v => v !== valueToRemove)
-    }));
-  };
-
-  const handleSubmit = () => {
-    if (!selectedTestType) {
-      setError('Please select a test type');
-      return;
-    }
-
-    // Get the selected test type configuration
-    const selectedTestTypeConfig = testTypes.find(t => t.name === selectedTestType);
-    if (!selectedTestTypeConfig) {
-      setError('Invalid test type configuration');
-      return;
-    }
-
-    // Process config values to use the formatted values for model_or_source fields
-    const processedConfig: Record<string, string | string[] | number | boolean> = {};
-    for (const [fieldName, value] of Object.entries(configValues)) {
-      const fieldConfig = selectedTestTypeConfig.required_configs.find(
-        config => config.name === fieldName
-      );
-
-      if (fieldConfig?.type === 'model_or_source') {
-        // Find the selected model or source
-        const selectedItem = modelsAndSources.find(item => item.name === value);
-        if (selectedItem) {
-          processedConfig[fieldName] = selectedItem.value;
-        } else {
-          processedConfig[fieldName] = value;
-        }
-      } else if (fieldConfig?.type === 'number') {
-        // Convert string value to number
-        const numValue = parseFloat(value as string);
-        if (!isNaN(numValue)) {
-          processedConfig[fieldName] = numValue;
-        } else {
-          processedConfig[fieldName] = value;
-        }
-      } else if (fieldConfig?.type === 'boolean') {
-        // Convert string 'true'/'false' to boolean
-        processedConfig[fieldName] = value === 'true';
-      } else {
-        processedConfig[fieldName] = value;
-      }
-    }
-
-    const testConfig = {
-      test_type: selectedTestType,
-      config: processedConfig
-    };
-
-    onAddTest({
-      dbt_project_path: dbtProjectPath,
-      profiles_yml_path: profilesYmlPath,
-      target_name: targetName,
-      schema: model.schema,
-      table: model.table,
-      model_path: model.sql_path,
-      test_config: testConfig,
-      column_name: selectedColumn || undefined
-    });
-
-    handleClose();
-  };
-
-  const handleClose = () => {
-    setSelectedTestType('');
-    setConfigValues({});
-    setSelectedColumn('');
-    setError('');
-    setCurrentArrayInput('');
-    onClose();
-  };
-
-  const renderConfigField = (config: { name: string; type: string; description: string }) => {
-    if (config.type === 'array') {
-      return (
-        <Box sx={{ mt: 2 }}>
-          <TextField
-            fullWidth
-            label={`${config.description} (Press Enter to add)`}
-            value={currentArrayInput}
-            onChange={(e) => setCurrentArrayInput(e.target.value)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleArrayInputKeyDown(e, config.name)}
-            margin="normal"
-          />
-          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', gap: 1 }}>
-            {(configValues[config.name] as string[] || []).map((value, index) => (
-              <Chip
-                key={index}
-                label={value}
-                onDelete={() => handleRemoveArrayValue(config.name, value)}
-              />
-            ))}
-          </Stack>
-        </Box>
-      );
-    }
-
-    if (config.type === 'model_or_source') {
-      const value = configValues[config.name];
-      return (
-        <FormControl fullWidth margin="normal">
-          <InputLabel>{config.description}</InputLabel>
-          <Select
-            value={typeof value === 'string' ? value : ''}
-            onChange={(e: SelectChangeEvent<string>) => handleConfigChange(config.name, e.target.value, config.type)}
-            label={config.description}
-          >
-            {modelsAndSources.map((item) => (
-              <MenuItem key={item.name} value={item.value}>
-                {item.name} ({item.type})
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      );
-    }
-
-    if (config.type === 'number') {
-      return (
-        <TextField
-          key={config.name}
-          fullWidth
-          label={config.description}
-          type="number"
-          value={typeof configValues[config.name] === 'string' ? configValues[config.name] : ''}
-          onChange={(e) => handleConfigChange(config.name, e.target.value, config.type)}
-          margin="normal"
-          inputProps={{ step: "any" }}
-        />
-      );
-    }
-
-    if (config.type === 'boolean') {
-      return (
-        <FormControl fullWidth margin="normal">
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={configValues[config.name] === 'true'}
-                onChange={(e) => handleConfigChange(config.name, e.target.checked.toString(), config.type)}
-              />
-            }
-            label={config.description}
-          />
-        </FormControl>
-      );
-    }
-
-    return (
-      <TextField
-        key={config.name}
-        fullWidth
-        label={config.description}
-        value={typeof configValues[config.name] === 'string' ? configValues[config.name] : ''}
-        onChange={(e) => handleConfigChange(config.name, e.target.value, config.type)}
-        margin="normal"
-      />
-    );
-  };
-
-  return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Configure Test</DialogTitle>
-      <DialogContent>
-        <Box sx={{ mt: 2 }}>
-          <TextField
-            select
-            fullWidth
-            label="Test Type"
-            value={selectedTestType}
-            onChange={handleTestTypeChange}
-            margin="normal"
-          >
-            {testTypes.map((type) => (
-              <MenuItem key={type.name} value={type.name}>
-                {type.name} - {type.description}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            fullWidth
-            label="Column (Optional)"
-            value={selectedColumn}
-            onChange={handleColumnChange}
-            margin="normal"
-          >
-            <MenuItem value="">None (Model-level test)</MenuItem>
-            {columns.map((column) => (
-              <MenuItem key={column.name} value={column.name}>
-                {column.name} ({column.type})
-              </MenuItem>
-            ))}
-          </TextField>
-
-          {selectedTestType && testTypes.find(t => t.name === selectedTestType)?.required_configs.map((config) => (
-            renderConfigField(config)
-          ))}
-
-          {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
-            </Alert>
-          )}
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" color="primary">
-          Add Test
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
 const ModelDetailsDialog: React.FC<{
   open: boolean;
   onClose: () => void;
   model: Model | null;
-  onAddTest: (testConfig: AddTestRequest) => void;
+  onAddTest: (request: AddTestRequestInterface) => void;
   onRemoveTest: (model: Model, testName: string) => void;
   dbtProjectPath: string;
   profilesYmlPath: string;
   targetName: string;
 }> = ({ open, onClose, model, onAddTest, onRemoveTest, dbtProjectPath, profilesYmlPath, targetName }) => {
   const [testConfigDialogOpen, setTestConfigDialogOpen] = useState(false);
-  const [error, setError] = useState<string>('');
 
   if (!model) return null;
 
@@ -545,11 +144,12 @@ const ModelDetailsDialog: React.FC<{
       <TestConfigDialog
         open={testConfigDialogOpen}
         onClose={() => setTestConfigDialogOpen(false)}
-        model={model}
+        sourceOrModel={model}
         onAddTest={onAddTest}
         dbtProjectPath={dbtProjectPath}
         profilesYmlPath={profilesYmlPath}
         targetName={targetName}
+        currentTestType="model"
       />
     </Dialog>
   );
@@ -559,7 +159,6 @@ export default function ModelsGrid({ dbtProjectPath, profilesYmlPath, targetName
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
-  const [testConfigDialogOpen, setTestConfigDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -610,7 +209,7 @@ export default function ModelsGrid({ dbtProjectPath, profilesYmlPath, targetName
     }
   };
 
-  const handleAddTest = async (testConfig: AddTestRequest) => {
+  const handleAddTest = async (testConfig: AddTestRequestInterface) => {
     try {
       const response = await fetch(`${API_CONFIG.backendUrl}${API_CONFIG.endpoints.models}/add-test`, {
         method: 'POST',
