@@ -3,6 +3,7 @@ from google.oauth2 import service_account
 from typing import List, Dict, Any, Optional
 import json
 import os
+import tempfile
 from .base_client import WarehouseClient
 
 class BigQueryClient(WarehouseClient):
@@ -16,21 +17,33 @@ class BigQueryClient(WarehouseClient):
         self.dataset = config.get('dataset', '')
         self.keyfile = config.get('keyfile', '')
         self.credentials = None
+        self.temp_keyfile = None
     
     def connect(self) -> bool:
         """Establish connection to BigQuery."""
         try:
             if self.keyfile and os.path.exists(self.keyfile):
+                # Use existing keyfile if provided
                 self.credentials = service_account.Credentials.from_service_account_file(
                     self.keyfile
                 )
-                self.client = bigquery.Client(
-                    project=self.project_id,
-                    credentials=self.credentials
+            elif 'keyfile_json' in self.config:
+                # Create temporary file for service account credentials
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+                    json.dump(self.config['keyfile_json'], f)
+                    self.temp_keyfile = f.name
+                
+                self.credentials = service_account.Credentials.from_service_account_file(
+                    self.temp_keyfile
                 )
             else:
-                # Use application default credentials if keyfile not provided
-                self.client = bigquery.Client(project=self.project_id)
+                # Use application default credentials if no keyfile provided
+                self.credentials = None
+            
+            self.client = bigquery.Client(
+                project=self.project_id,
+                credentials=self.credentials
+            )
             
             return self.client is not None
         except Exception as e:
@@ -41,6 +54,12 @@ class BigQueryClient(WarehouseClient):
         """Close the BigQuery connection."""
         if self.client:
             self.client.close()
+        # Clean up temporary keyfile if it exists
+        if self.temp_keyfile and os.path.exists(self.temp_keyfile):
+            try:
+                os.unlink(self.temp_keyfile)
+            except Exception as e:
+                print(f"Error cleaning up temporary keyfile: {str(e)}")
     
     def get_schemas(self) -> List[str]:
         """Get list of all datasets (schemas) in BigQuery."""

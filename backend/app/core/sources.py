@@ -234,7 +234,7 @@ def create_sources(dbt_project_path: str, source_name: str, schema_name: str, ta
                 if table_name not in existing_tables:
                     existing_source['tables'].append({
                         'name': table_name,
-                        'identifier': get_safe(table, 'identifier', table_name),
+                        'identifier': table_name,  # Always use the same name as identifier
                         'description': get_safe(table, 'description', '')
                     })
         else:
@@ -246,7 +246,7 @@ def create_sources(dbt_project_path: str, source_name: str, schema_name: str, ta
                 'tables': [
                     {
                         'name': get_safe(table, 'name'),
-                        'identifier': get_safe(table, 'identifier', get_safe(table, 'name')),
+                        'identifier': get_safe(table, 'name'),  # Always use the same name as identifier
                         'description': get_safe(table, 'description', '')
                     }
                     for table in tables
